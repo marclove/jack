@@ -168,8 +168,7 @@ async def _resume(args: argparse.Namespace) -> None:
         model_handler=anthropic_handler(client, model=args.model),
         payment_service=fake,
     )
-    async for _ in session.resume(mode="redispatch"):
-        pass
+    await session.resume(mode="redispatch")
     print(f"[resumed call {args.call_id}]")
     await _run_call(session, fake, args.poll_interval)
 

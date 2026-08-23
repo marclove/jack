@@ -33,7 +33,7 @@ from jack.reducers import (
 )
 from jack.services import FakePaymentService
 from jack.tools import IntakeToolsHandler
-from jack.vocabulary import JackCommand, JackEvent
+from jack.vocabulary import JACK_VOCABULARY
 
 
 def jack_reducers() -> list[Any]:
@@ -64,7 +64,7 @@ async def build_session(
 ) -> Session:
     service = payment_service or FakePaymentService(payments_path)
     resuming = log_path.exists() and log_path.stat().st_size > 0
-    log = JsonlEventLog(log_path, events=JackEvent, commands=JackCommand)
+    log = JsonlEventLog(log_path, vocabulary=JACK_VOCABULARY)
     handlers = {
         "model": model_handler,
         "intake": IntakeToolsHandler(),

@@ -100,12 +100,14 @@ All events and commands are `FrozenModel` subclasses with a literal
 | `send_payment_link` | `phone`, `amount_cents`, `attempt` | single (one link in flight per call) | `payment_link_sent` |
 | `check_payment` | `link_id` | keyed by `link_id` (key mirror: copied verbatim onto `payment_status_checked`) | `payment_status_checked` |
 
-### Log unions
+### Log vocabulary
 
-`vocabulary.py` exports `JackEvent` and `JackCommand`, discriminated
-unions built on rig's `Event` and `Command` plus the types above. The
-JSONL log is always constructed with them; a log built with the
-defaults cannot reopen a jack call.
+`vocabulary.py` exports `JACK_VOCABULARY`, built with rig's
+`vocabulary()` from the types above — the built-in unions are always
+included, and tag collisions or untagged models fail at build time.
+Every model's `type` tag is derived from its class name. The JSONL log
+is always constructed with `vocabulary=JACK_VOCABULARY`; a log built
+with the defaults cannot reopen a jack call.
 
 ## 5. Reducers and state
 

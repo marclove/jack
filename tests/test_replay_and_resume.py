@@ -7,7 +7,7 @@ from scripted import ScriptedModelHandler, text_response, tool_call
 from jack import prompts
 from jack.services import FakePaymentService
 from jack.session import build_session, jack_reducers
-from jack.vocabulary import JackCommand, JackEvent, PollTick, PricingConfigured
+from jack.vocabulary import JACK_VOCABULARY, PollTick, PricingConfigured
 
 INTAKE_SCRIPT = [
     tool_call(
@@ -29,8 +29,7 @@ async def run_to_pending_link(tmp_path: Path):
         amount_cents=15000,
     )
     await session.run(PricingConfigured(amount_cents=15000))
-    async for _ in session.send("My car died"):
-        pass
+    await session.send("My car died")
     await session.run(PollTick())
     return session
 
@@ -70,8 +69,7 @@ async def test_resume_folds_identical_state_and_completes_the_call(
     await resumed.run(PollTick())
     assert resumed.state.slices["payment"].status == "paid"
 
-    async for _ in resumed.send(prompts.PAYMENT_CONFIRMED_NOTICE):
-        pass
+    await resumed.send(prompts.PAYMENT_CONFIRMED_NOTICE)
     assert resumed.state.slices["completion"].outcome == "paid"
 
 
@@ -94,7 +92,7 @@ async def test_resume_after_kill_between_send_and_result_does_not_double_charge(
     truncated_path = tmp_path / "truncated.jsonl"
     truncated_path.write_text("\n".join(raw_lines[: cut + 1]) + "\n")
     # sanity: the truncated log parses and ends on the logged command
-    check = JsonlEventLog(truncated_path, events=JackEvent, commands=JackCommand)
+    check = JsonlEventLog(truncated_path, vocabulary=JACK_VOCABULARY)
     tail = (await check.load())[-1]
     assert tail.kind == "command" and tail.command.type == "send_payment_link"
 
@@ -107,8 +105,7 @@ async def test_resume_after_kill_between_send_and_result_does_not_double_charge(
     # the send is in flight (a call_model logged in the same dispatch
     # batch may be in flight beside it — the script answers it)
     assert "send_payment_link" in resumed.state.pending
-    async for _ in resumed.resume(mode="redispatch"):
-        pass
+    await resumed.resume(mode="redispatch")
     payment = resumed.state.slices["payment"]
     assert payment.link_id == first_link  # same idempotency key, same link
     assert payment.status == "pending"
