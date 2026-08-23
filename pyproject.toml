@@ -24,6 +24,10 @@ ty = "*"
 line-length = 88
 src = ["src", "tests"]
 
+[tool.ty.environment]
+python-version = "3.12"
+root = ["src", "tests", "tests/support"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 pythonpath = ["tests/support"]

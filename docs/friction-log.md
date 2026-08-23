@@ -13,6 +13,16 @@ Works and replays exactly, but every harness with polling will reinvent it.
 rig should decide whether to bless the pattern (docs) or absorb it (a runtime
 scheduling facility that appends tick events).
 
+## 2026-08-23 — Reducer protocol requires methods the docs call optional
+
+Tutorial 03 says a reducer "may define two methods, and both are
+optional", and the runtime tolerates a missing `emit`. But the
+`Reducer` protocol in `rig.core.protocols` requires both members, so a
+fold-only reducer fails `ty` when passed to `create_engine`. jack adds
+an empty `emit` to every fact reducer to satisfy the checker. Either
+the protocol should split (or default) the optional members, or the
+docs should stop calling them optional.
+
 ## 2026-08-23 — domain state cannot prompt the model
 
 When payment is confirmed (a domain event), the model needs to be told so it
