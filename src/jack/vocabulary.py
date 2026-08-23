@@ -1,15 +1,15 @@
 """jack's domain vocabulary: the facts and requests of one intake call.
 
 Events are facts folded into state; commands are requests for effects.
-``JackEvent`` / ``JackCommand`` extend rig's built-in unions so the JSONL
-log can write and read jack's types — a log built with rig's defaults
-cannot reopen a jack call (spec §4).
+Every model's ``type`` tag is derived from its class name by
+``FrozenModel``. ``JACK_VOCABULARY`` extends rig's built-in unions so
+the JSONL log can write and read jack's types — a log built with rig's
+defaults cannot reopen a jack call (spec §4).
 """
 
-from typing import Annotated, Literal
+from typing import Literal
 
-from pydantic import Field
-from rig.core import Command, Event, FrozenModel
+from rig.core import FrozenModel, vocabulary
 
 
 class PricingConfigured(FrozenModel):
@@ -18,7 +18,6 @@ class PricingConfigured(FrozenModel):
     Reducers are pure and cannot read configuration, so pricing folds
     from this event into the pricing slice (spec §5)."""
 
-    type: Literal["pricing_configured"] = "pricing_configured"
     amount_cents: int
     currency: str = "USD"
 
@@ -26,7 +25,6 @@ class PricingConfigured(FrozenModel):
 class IssueRecorded(FrozenModel):
     """The customer's problem, as facts the model extracted."""
 
-    type: Literal["issue_recorded"] = "issue_recorded"
     summary: str
     vehicle: str
 
@@ -34,7 +32,6 @@ class IssueRecorded(FrozenModel):
 class TowJudged(FrozenModel):
     """The model's judgment on whether a tow is appropriate."""
 
-    type: Literal["tow_judged"] = "tow_judged"
     appropriate: bool
     reason: str
 
@@ -42,7 +39,6 @@ class TowJudged(FrozenModel):
 class LocationsRecorded(FrozenModel):
     """Pickup and destination for the tow."""
 
-    type: Literal["locations_recorded"] = "locations_recorded"
     pickup: str
     dropoff: str
 
@@ -51,7 +47,6 @@ class ContactRecorded(FrozenModel):
     """The customer's mobile number. Also re-arms a halted payment send
     (spec §6): recording contact clears a rejection or send failure."""
 
-    type: Literal["contact_recorded"] = "contact_recorded"
     phone: str
 
 
@@ -60,7 +55,6 @@ class PaymentLinkSent(FrozenModel):
     failed send (handlers report failure, they do not raise); the link
     fields are then None and ``error`` says why."""
 
-    type: Literal["payment_link_sent"] = "payment_link_sent"
     status: Literal["ok", "error"] = "ok"
     link_id: str | None = None
     url: str | None = None
@@ -74,7 +68,6 @@ class PaymentStatusChecked(FrozenModel):
     ``status="error"`` reports a failed check; the tick that paid for it
     is consumed either way (spec §6)."""
 
-    type: Literal["payment_status_checked"] = "payment_status_checked"
     link_id: str
     status: Literal["pending", "paid", "expired", "error"]
     error: str | None = None
@@ -85,13 +78,10 @@ class PollTick(FrozenModel):
     appends ticks; the payment reducer emits one ``check_payment`` per
     unconsumed tick (spec §6)."""
 
-    type: Literal["poll_tick"] = "poll_tick"
-
 
 class IntakeCompleted(FrozenModel):
     """The call is over. The CLI exits when this folds."""
 
-    type: Literal["intake_completed"] = "intake_completed"
     outcome: Literal["paid", "no_tow_needed", "abandoned"]
 
 
@@ -102,7 +92,6 @@ class SendPaymentLink(FrozenModel):
     same attempt gets the same link; a retry after expiry (a higher
     attempt) gets a fresh one (spec §6)."""
 
-    type: Literal["send_payment_link"] = "send_payment_link"
     phone: str
     amount_cents: int
     attempt: int
@@ -112,24 +101,20 @@ class CheckPayment(FrozenModel):
     """Ask the payment service for a link's status. Keyed by ``link_id``,
     which ``payment_status_checked`` mirrors back."""
 
-    type: Literal["check_payment"] = "check_payment"
     link_id: str
 
 
-JackEvent = Annotated[
-    Event
-    | PricingConfigured
-    | IssueRecorded
-    | TowJudged
-    | LocationsRecorded
-    | ContactRecorded
-    | PaymentLinkSent
-    | PaymentStatusChecked
-    | PollTick
-    | IntakeCompleted,
-    Field(discriminator="type"),
-]
-
-JackCommand = Annotated[
-    Command | SendPaymentLink | CheckPayment, Field(discriminator="type")
-]
+JACK_VOCABULARY = vocabulary(
+    events=[
+        PricingConfigured,
+        IssueRecorded,
+        TowJudged,
+        LocationsRecorded,
+        ContactRecorded,
+        PaymentLinkSent,
+        PaymentStatusChecked,
+        PollTick,
+        IntakeCompleted,
+    ],
+    commands=[SendPaymentLink, CheckPayment],
+)

@@ -26,10 +26,6 @@ WRAP_UP_SCRIPT = [
 ]
 
 
-async def drain(gen) -> list:
-    return [event async for event in gen]
-
-
 async def open_call(tmp_path: Path, script: list):
     session = await build_session(
         log_path=tmp_path / "call.jsonl",
@@ -45,7 +41,7 @@ async def open_call(tmp_path: Path, script: list):
 async def test_full_intake_reaches_paid(tmp_path: Path) -> None:
     session = await open_call(tmp_path, [*INTAKE_SCRIPT, *WRAP_UP_SCRIPT])
 
-    events = await drain(session.send("My car died on 5th and Main"))
+    events = await session.send("My car died on 5th and Main")
     types = [e.type for e in events]
     # facts recorded, link sent within the same turn, guarded first
     assert "issue_recorded" in types
@@ -70,14 +66,14 @@ async def test_full_intake_reaches_paid(tmp_path: Path) -> None:
     assert session.state.slices["payment"].status == "paid"
 
     # notice closes the loop
-    await drain(session.send(prompts.PAYMENT_CONFIRMED_NOTICE))
+    await session.send(prompts.PAYMENT_CONFIRMED_NOTICE)
     completion = session.state.slices["completion"]
     assert completion is not None and completion.outcome == "paid"
 
 
 async def test_write_order_command_check_verdict_result(tmp_path: Path) -> None:
     session = await open_call(tmp_path, list(INTAKE_SCRIPT))
-    await drain(session.send("My car died"))
+    await session.send("My car died")
     entries = await session.log.load()
     shape = [
         (e.kind, e.event.type if e.kind == "event" else e.command.type) for e in entries

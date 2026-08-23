@@ -8,8 +8,7 @@ from jack.vocabulary import (
     ContactRecorded,
     IntakeCompleted,
     IssueRecorded,
-    JackCommand,
-    JackEvent,
+    JACK_VOCABULARY,
     LocationsRecorded,
     PaymentLinkSent,
     PaymentStatusChecked,
@@ -42,7 +41,7 @@ ALL_COMMANDS = [
 async def test_jack_vocabulary_round_trips_through_the_jsonl_log(
     tmp_path: Path,
 ) -> None:
-    log = JsonlEventLog(tmp_path / "call.jsonl", events=JackEvent, commands=JackCommand)
+    log = JsonlEventLog(tmp_path / "call.jsonl", vocabulary=JACK_VOCABULARY)
     seq = 0
     for event in ALL_EVENTS:
         await log.append(EventEntry(seq=seq, ts=float(seq), event=event))
@@ -53,9 +52,7 @@ async def test_jack_vocabulary_round_trips_through_the_jsonl_log(
         )
         seq += 1
 
-    reloaded = JsonlEventLog(
-        tmp_path / "call.jsonl", events=JackEvent, commands=JackCommand
-    )
+    reloaded = JsonlEventLog(tmp_path / "call.jsonl", vocabulary=JACK_VOCABULARY)
     entries = await reloaded.load()
     events = [e.event for e in entries if e.kind == "event"]
     commands = [e.command for e in entries if e.kind == "command"]

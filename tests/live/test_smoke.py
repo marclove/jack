@@ -39,8 +39,7 @@ async def test_live_intake_reaches_a_payment_link(tmp_path: Path) -> None:
     )
     await session.run(PricingConfigured(amount_cents=15000))
     for line in CUSTOMER_LINES:
-        async for _ in session.send(line):
-            pass
+        await session.send(line)
         if session.state.slices["payment"].link_id is not None:
             break
 

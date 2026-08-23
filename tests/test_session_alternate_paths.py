@@ -8,10 +8,6 @@ from jack.session import build_session
 from jack.vocabulary import PricingConfigured
 
 
-async def drain(gen) -> list:
-    return [event async for event in gen]
-
-
 async def test_bad_phone_is_rejected_then_corrected(tmp_path: Path) -> None:
     script = [
         tool_call(
@@ -36,7 +32,7 @@ async def test_bad_phone_is_rejected_then_corrected(tmp_path: Path) -> None:
     )
     await session.run(PricingConfigured(amount_cents=15000))
 
-    events = await drain(session.send("My car died"))
+    events = await session.send("My car died")
     types = [e.type for e in events]
     assert "command_rejected" in types
     assert "payment_link_sent" not in types
@@ -45,9 +41,7 @@ async def test_bad_phone_is_rejected_then_corrected(tmp_path: Path) -> None:
     assert payment.halt_reason is not None
     assert "phone" in payment.halt_reason
 
-    events = await drain(
-        session.send(prompts.link_rejected_notice(payment.halt_reason))
-    )
+    events = await session.send(prompts.link_rejected_notice(payment.halt_reason))
     types = [e.type for e in events]
     assert "contact_recorded" in types
     assert "payment_link_sent" in types
@@ -73,7 +67,7 @@ async def test_no_tow_needed_completes_without_payment(tmp_path: Path) -> None:
         amount_cents=15000,
     )
     await session.run(PricingConfigured(amount_cents=15000))
-    await drain(session.send("I ran out of gas"))
+    await session.send("I ran out of gas")
 
     assert session.state.slices["completion"].outcome == "no_tow_needed"
     payment = session.state.slices["payment"]
@@ -109,7 +103,7 @@ async def test_injected_send_failure_maps_to_send_failed_halt(tmp_path: Path) ->
     )
     await session.run(PricingConfigured(amount_cents=15000))
 
-    events = await drain(session.send("My car died"))
+    events = await session.send("My car died")
     types = [e.type for e in events]
     assert "payment_link_sent" in types  # the error-status result event
     payment = session.state.slices["payment"]
@@ -118,5 +112,5 @@ async def test_injected_send_failure_maps_to_send_failed_halt(tmp_path: Path) ->
     assert "FakePaymentFailure" in payment.halt_reason
     assert payment.attempts == 0
 
-    await drain(session.send(prompts.link_failed_notice(payment.halt_reason)))
+    await session.send(prompts.link_failed_notice(payment.halt_reason))
     assert session.state.slices["payment"].status == "pending"
