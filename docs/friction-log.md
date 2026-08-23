@@ -23,6 +23,18 @@ an empty `emit` to every fact reducer to satisfy the checker. Either
 the protocol should split (or default) the optional members, or the
 docs should stop calling them optional.
 
+## 2026-08-23 — resume() is a separate, easy-to-forget step
+
+`Session.open` on an existing log rebuilds state, including the pending
+marks for in-flight commands — but nothing re-dispatches them until you
+drain `session.resume(mode=...)`, an async generator like `send`. jack's
+CLI initially reopened the log and went straight to the input loop, which
+would strand any command caught by a crash window forever. The tutorials
+cover this, but the API makes the wrong thing quiet: a session with
+non-empty `pending` and no `resume()` call just sits there. Consider
+having `Session.open` fail loudly (or warn) when a session with in-flight
+commands starts taking new turns before resume.
+
 ## 2026-08-23 — domain state cannot prompt the model
 
 When payment is confirmed (a domain event), the model needs to be told so it

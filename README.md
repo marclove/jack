@@ -14,3 +14,10 @@ and completes the call. Design: `docs/design/2026-08-23-intake-harness-design.md
     poetry run jack pay <id>       # fake paying the link (second terminal)
 
 `make ci` runs lint, typecheck, and tests.
+
+## Live smoke
+
+    JACK_LIVE_SMOKE=1 poetry run pytest tests/live -v
+
+Runs one real conversation on `claude-haiku-4-5` against the fake payment
+service. Everything else in the suite is offline.
