@@ -295,7 +295,9 @@ Same layered style as rig, no mocks where purity allows:
   fold the events through a fresh engine, assert slices and pending
   match live state. Also reopen the log and assert the resumed session
   folds identical state.
-- **Full-turn tests** — `ScriptedModelHandler` (rig tutorial pattern)
+- **Full-turn tests** — `ScriptedModelHandler` (rig tutorial pattern;
+  since 2026-08-24 this is rig's published `rig.testing.ScriptedModel`
+  and the hand rolled copy is gone)
   drives a complete intake without the network: happy path to `paid`,
   the no-tow path, the guard rejection path, kill between link send
   and payment then resume and complete.

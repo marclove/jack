@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from scripted import ScriptedModelHandler, text_response, tool_call
+from rig.testing import ScriptedModel, reply, tool_call
 
 from jack import prompts
 from jack.services import FakePaymentService
@@ -10,24 +10,20 @@ from jack.vocabulary import PricingConfigured
 
 async def test_bad_phone_is_rejected_then_corrected(tmp_path: Path) -> None:
     script = [
-        tool_call(
-            "intake__record_issue", {"summary": "dead", "vehicle": "Civic"}, "c1"
-        ),
-        tool_call(
-            "intake__judge_tow", {"appropriate": True, "reason": "undrivable"}, "c2"
-        ),
-        tool_call("intake__record_locations", {"pickup": "A", "dropoff": "B"}, "c3"),
-        tool_call("intake__record_contact", {"phone": "not a number"}, "c4"),
-        text_response("Hmm, let me check that number."),
+        reply(tool_call("intake__record_issue", summary="dead", vehicle="Civic")),
+        reply(tool_call("intake__judge_tow", appropriate=True, reason="undrivable")),
+        reply(tool_call("intake__record_locations", pickup="A", dropoff="B")),
+        reply(tool_call("intake__record_contact", phone="not a number")),
+        reply("Hmm, let me check that number."),
         # second round: the notice arrives, model re-records the contact
-        tool_call("intake__record_contact", {"phone": "555-123-4567"}, "c5"),
-        text_response("Link sent."),
+        reply(tool_call("intake__record_contact", phone="555-123-4567")),
+        reply("Link sent."),
     ]
     session = await build_session(
         log_path=tmp_path / "call.jsonl",
         payments_path=tmp_path / "pay.json",
         call_id="call-t",
-        model_handler=ScriptedModelHandler(script),
+        model_handler=ScriptedModel(script),
         amount_cents=15000,
     )
     await session.run(PricingConfigured(amount_cents=15000))
@@ -50,20 +46,20 @@ async def test_bad_phone_is_rejected_then_corrected(tmp_path: Path) -> None:
 
 async def test_no_tow_needed_completes_without_payment(tmp_path: Path) -> None:
     script = [
-        tool_call(
-            "intake__record_issue", {"summary": "out of fuel", "vehicle": "Civic"}, "c1"
+        reply(
+            tool_call("intake__record_issue", summary="out of fuel", vehicle="Civic")
         ),
-        tool_call(
-            "intake__judge_tow", {"appropriate": False, "reason": "fuel delivery"}, "c2"
+        reply(
+            tool_call("intake__judge_tow", appropriate=False, reason="fuel delivery")
         ),
-        tool_call("intake__complete_intake", {"outcome": "no_tow_needed"}, "c3"),
-        text_response("A fuel truck is a better fit — goodbye!"),
+        reply(tool_call("intake__complete_intake", outcome="no_tow_needed")),
+        reply("A fuel truck is a better fit — goodbye!"),
     ]
     session = await build_session(
         log_path=tmp_path / "call.jsonl",
         payments_path=tmp_path / "pay.json",
         call_id="call-t",
-        model_handler=ScriptedModelHandler(script),
+        model_handler=ScriptedModel(script),
         amount_cents=15000,
     )
     await session.run(PricingConfigured(amount_cents=15000))
@@ -79,25 +75,21 @@ async def test_injected_send_failure_maps_to_send_failed_halt(tmp_path: Path) ->
     on create_link, the session routes the raise through jack_error_result,
     the reducer folds the error result and halts the standing request."""
     script = [
-        tool_call(
-            "intake__record_issue", {"summary": "dead", "vehicle": "Civic"}, "c1"
-        ),
-        tool_call(
-            "intake__judge_tow", {"appropriate": True, "reason": "undrivable"}, "c2"
-        ),
-        tool_call("intake__record_locations", {"pickup": "A", "dropoff": "B"}, "c3"),
-        tool_call("intake__record_contact", {"phone": "555-123-4567"}, "c4"),
-        text_response("One moment."),
+        reply(tool_call("intake__record_issue", summary="dead", vehicle="Civic")),
+        reply(tool_call("intake__judge_tow", appropriate=True, reason="undrivable")),
+        reply(tool_call("intake__record_locations", pickup="A", dropoff="B")),
+        reply(tool_call("intake__record_contact", phone="555-123-4567")),
+        reply("One moment."),
         # after the failure notice, the model re-records the contact to retry
-        tool_call("intake__record_contact", {"phone": "555-123-4567"}, "c5"),
-        text_response("Link sent."),
+        reply(tool_call("intake__record_contact", phone="555-123-4567")),
+        reply("Link sent."),
     ]
     failing = FakePaymentService(tmp_path / "pay.json", fail_creates=1)
     session = await build_session(
         log_path=tmp_path / "call.jsonl",
         payments_path=tmp_path / "pay.json",
         call_id="call-t",
-        model_handler=ScriptedModelHandler(script),
+        model_handler=ScriptedModel(script),
         amount_cents=15000,
         payment_service=failing,
     )

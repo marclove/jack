@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from scripted import ScriptedModelHandler, text_response, tool_call
+from rig.testing import ScriptedModel, reply, tool_call
 
 from jack import prompts
 from jack.services import FakePaymentService
@@ -8,21 +8,19 @@ from jack.session import build_session
 from jack.vocabulary import PollTick, PricingConfigured
 
 INTAKE_SCRIPT = [
-    tool_call(
-        "intake__record_issue", {"summary": "engine died", "vehicle": "Civic"}, "c1"
+    reply(tool_call("intake__record_issue", summary="engine died", vehicle="Civic")),
+    reply(tool_call("intake__judge_tow", appropriate=True, reason="undrivable")),
+    reply(
+        tool_call(
+            "intake__record_locations", pickup="5th and Main", dropoff="Joe's Garage"
+        )
     ),
-    tool_call("intake__judge_tow", {"appropriate": True, "reason": "undrivable"}, "c2"),
-    tool_call(
-        "intake__record_locations",
-        {"pickup": "5th and Main", "dropoff": "Joe's Garage"},
-        "c3",
-    ),
-    tool_call("intake__record_contact", {"phone": "555-123-4567"}, "c4"),
-    text_response("A payment link is on its way to your phone."),
+    reply(tool_call("intake__record_contact", phone="555-123-4567")),
+    reply("A payment link is on its way to your phone."),
 ]
 WRAP_UP_SCRIPT = [
-    tool_call("intake__complete_intake", {"outcome": "paid"}, "c5"),
-    text_response("You're all set. Goodbye!"),
+    reply(tool_call("intake__complete_intake", outcome="paid")),
+    reply("You're all set. Goodbye!"),
 ]
 
 
@@ -31,7 +29,7 @@ async def open_call(tmp_path: Path, script: list):
         log_path=tmp_path / "call.jsonl",
         payments_path=tmp_path / "pay.json",
         call_id="call-t",
-        model_handler=ScriptedModelHandler(script),
+        model_handler=ScriptedModel(script),
         amount_cents=15000,
     )
     await session.run(PricingConfigured(amount_cents=15000))
@@ -74,12 +72,12 @@ async def test_full_intake_reaches_paid(tmp_path: Path) -> None:
 async def test_write_order_command_check_verdict_result(tmp_path: Path) -> None:
     session = await open_call(tmp_path, list(INTAKE_SCRIPT))
     await session.send("My car died")
-    entries = await session.log.load()
-    shape = [
-        (e.kind, e.event.type if e.kind == "event" else e.command.type) for e in entries
-    ]
-    i_send = shape.index(("command", "send_payment_link"))
-    i_check = shape.index(("command", "guard_check"))
-    i_verdict = shape.index(("event", "guard_verdict"))
-    i_sent = shape.index(("event", "payment_link_sent"))
-    assert i_send < i_check < i_verdict < i_sent
+    from rig.testing import shape
+
+    s = await shape(session.log)
+    assert (
+        s.index("command:send_payment_link")
+        < s.index("command:guard_check")
+        < s.index("event:guard_verdict")
+        < s.index("event:payment_link_sent")
+    )
