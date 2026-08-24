@@ -1,5 +1,5 @@
 from rig.core import CommandRejected
-from rigging import booted, jack_engine
+from rigging import booted
 
 from jack.reducers import MAX_LINK_ATTEMPTS
 from jack.vocabulary import (
@@ -23,147 +23,98 @@ LINK_OK = PaymentLinkSent(
 )
 
 
-def sends(result) -> list:
-    return [a.command for a in result.actions if a.command.type == "send_payment_link"]
-
-
 def test_all_facts_present_emits_send_with_price_phone_and_attempt_1() -> None:
-    engine = jack_engine()
-    state = booted(engine)
-    result = None
-    for event in ALL_FACTS:
-        result = engine.step(state, event)
-        state = result.state
-    assert sends(result) == [
+    run = booted().then(*ALL_FACTS)
+    assert run.commands("send_payment_link") == [
         SendPaymentLink(phone="555-123-4567", amount_cents=15000, attempt=1)
     ]
 
 
 def test_each_missing_fact_suppresses_the_send() -> None:
-    engine = jack_engine()
     for omitted in ALL_FACTS:
-        state = booted(engine)
-        result = None
-        for event in ALL_FACTS:
-            if event is omitted:
-                continue
-            result = engine.step(state, event)
-            state = result.state
-        assert sends(result) == [], f"send emitted despite missing {omitted.type}"
+        run = booted().then(*(e for e in ALL_FACTS if e is not omitted))
+        assert (
+            run.commands("send_payment_link") == []
+        ), f"send emitted despite missing {omitted.type}"
 
 
 def test_tow_judged_inappropriate_never_sends() -> None:
-    engine = jack_engine()
-    state = booted(engine)
-    result = None
-    for event in (PRICING, TOW_NO, TRIP, CONTACT):
-        result = engine.step(state, event)
-        state = result.state
-    assert sends(result) == []
+    run = booted().then(PRICING, TOW_NO, TRIP, CONTACT)
+    assert run.commands("send_payment_link") == []
 
 
 def test_link_sent_ok_records_link_and_stops_asking() -> None:
-    engine = jack_engine()
-    state = booted(engine)
-    for event in ALL_FACTS:
-        state = engine.step(state, event).state
-    result = engine.step(state, LINK_OK)
-    payment = result.state.slices["payment"]
+    run = booted().then(*ALL_FACTS, LINK_OK)
+    payment = run.state.slices["payment"]
     assert payment.link_id == "link-1"
     assert payment.status == "pending"
     assert payment.attempts == 1
-    assert sends(result) == []
+    assert run.commands("send_payment_link") == []
 
 
 def test_rejection_retires_the_standing_request_and_keeps_the_reason() -> None:
-    engine = jack_engine()
-    state = booted(engine)
-    for event in ALL_FACTS:
-        state = engine.step(state, event).state
-    rejection = CommandRejected(
-        command="send_payment_link", key=None, reason="phone looks wrong"
+    run = booted().then(
+        *ALL_FACTS,
+        CommandRejected(
+            command="send_payment_link", key=None, reason="phone looks wrong"
+        ),
     )
-    result = engine.step(state, rejection)
-    payment = result.state.slices["payment"]
+    payment = run.state.slices["payment"]
     assert payment.halted == "rejected"
     assert payment.halt_reason == "phone looks wrong"
-    assert sends(result) == []
-    assert result.state.pending == {}
+    assert run.commands("send_payment_link") == []
+    assert run.state.pending == {}
 
 
 def test_new_contact_clears_a_halt_and_rearms_the_send() -> None:
-    engine = jack_engine()
-    state = booted(engine)
-    for event in ALL_FACTS:
-        state = engine.step(state, event).state
-    state = engine.step(
-        state,
+    run = booted().then(
+        *ALL_FACTS,
         CommandRejected(command="send_payment_link", key=None, reason="bad phone"),
-    ).state
-    result = engine.step(state, ContactRecorded(phone="555-999-8888"))
-    assert result.state.slices["payment"].halted is None
-    assert sends(result) == [
+        ContactRecorded(phone="555-999-8888"),
+    )
+    assert run.state.slices["payment"].halted is None
+    assert run.commands("send_payment_link") == [
         SendPaymentLink(phone="555-999-8888", amount_cents=15000, attempt=1)
     ]
 
 
 def test_send_failure_halts_like_a_rejection() -> None:
-    engine = jack_engine()
-    state = booted(engine)
-    for event in ALL_FACTS:
-        state = engine.step(state, event).state
     failed = PaymentLinkSent(status="error", error="FakePaymentFailure: boom")
-    result = engine.step(state, failed)
-    payment = result.state.slices["payment"]
+    run = booted().then(*ALL_FACTS, failed)
+    payment = run.state.slices["payment"]
     assert payment.halted == "send_failed"
     assert payment.attempts == 0
-    assert sends(result) == []
+    assert run.commands("send_payment_link") == []
 
 
 def test_expiry_rearms_the_send_with_the_next_attempt() -> None:
-    engine = jack_engine()
-    state = booted(engine)
-    for event in ALL_FACTS:
-        state = engine.step(state, event).state
-    state = engine.step(state, LINK_OK).state
-    result = engine.step(
-        state, PaymentStatusChecked(link_id="link-1", status="expired")
+    run = booted().then(
+        *ALL_FACTS, LINK_OK, PaymentStatusChecked(link_id="link-1", status="expired")
     )
-    assert result.state.slices["payment"].status == "expired"
-    assert sends(result) == [
+    assert run.state.slices["payment"].status == "expired"
+    assert run.commands("send_payment_link") == [
         SendPaymentLink(phone="555-123-4567", amount_cents=15000, attempt=2)
     ]
 
 
 def test_attempt_cap_stops_resending_after_max_links() -> None:
-    engine = jack_engine()
-    state = booted(engine)
-    for event in ALL_FACTS:
-        state = engine.step(state, event).state
-    result = None
+    run = booted().then(*ALL_FACTS)
     for n in range(1, MAX_LINK_ATTEMPTS + 1):
-        state = engine.step(
-            state,
+        run = run.then(
             PaymentLinkSent(
                 link_id=f"link-{n}",
                 url=f"https://pay.example/link-{n}",
                 amount_cents=15000,
             ),
-        ).state
-        result = engine.step(
-            state, PaymentStatusChecked(link_id=f"link-{n}", status="expired")
+            PaymentStatusChecked(link_id=f"link-{n}", status="expired"),
         )
-        state = result.state
-    assert state.slices["payment"].attempts == MAX_LINK_ATTEMPTS
-    assert sends(result) == []
+    assert run.state.slices["payment"].attempts == MAX_LINK_ATTEMPTS
+    assert run.commands("send_payment_link") == []
 
 
 def test_paid_stops_everything() -> None:
-    engine = jack_engine()
-    state = booted(engine)
-    for event in ALL_FACTS:
-        state = engine.step(state, event).state
-    state = engine.step(state, LINK_OK).state
-    result = engine.step(state, PaymentStatusChecked(link_id="link-1", status="paid"))
-    assert result.state.slices["payment"].status == "paid"
-    assert sends(result) == []
+    run = booted().then(
+        *ALL_FACTS, LINK_OK, PaymentStatusChecked(link_id="link-1", status="paid")
+    )
+    assert run.state.slices["payment"].status == "paid"
+    assert run.commands("send_payment_link") == []

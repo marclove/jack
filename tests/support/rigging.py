@@ -1,9 +1,11 @@
-"""Engine-level test rigging: a pure engine with jack's reducers and the
-payment topology folded in, as a session's boot turn would produce it."""
+"""Engine-level test rigging: jack's reducers over the payment
+topology, as a `rig.testing` fold — `booted().then(...)` reads the way
+the reducer tests speak."""
 
 from typing import Any
 
-from rig.core import ConnectionAdded, ConnectionDef, KeyedByField, create_engine
+from rig.core import ConnectionDef, KeyedByField, create_engine
+from rig.testing import Fold, fold
 
 from jack.reducers import (
     CompletionReducer,
@@ -45,9 +47,8 @@ def jack_engine() -> Any:
     )
 
 
-def booted(engine: Any) -> Any:
-    """Initial state with the payment connections folded in."""
-    state = engine.initial_state()
-    for definition in (PAYMENT_DEF, CHECK_DEF):
-        state = engine.step(state, ConnectionAdded(connection=definition)).state
-    return state
+def booted() -> Fold:
+    """A fold over a fresh engine with the payment connections folded
+    in — what a session's boot turn produces. Chain events with
+    ``.then(...)`` and assert on ``.commands(...)`` and ``.state``."""
+    return fold(jack_engine(), boot=(PAYMENT_DEF, CHECK_DEF))
