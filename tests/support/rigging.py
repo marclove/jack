@@ -4,7 +4,7 @@ the reducer tests speak."""
 
 from typing import Any
 
-from rig.core import ConnectionDef, KeyedByField, create_engine
+from rig.core import ConnectionDef, KeyedBy, create_engine
 from rig.testing import Fold, fold
 
 from jack.reducers import (
@@ -29,7 +29,7 @@ CHECK_DEF = ConnectionDef(
     handler_id="payment_check",
     command="check_payment",
     result="payment_status_checked",
-    tracking=KeyedByField(keyed_by="link_id"),
+    tracking=KeyedBy(keyed_by="link_id"),
 )
 
 

@@ -45,7 +45,7 @@ class IntakeToolsHandler:
                 HandlerPair(
                     command="execute_tool",
                     result="tool_result",
-                    tracking=KeyedBy("call_id"),
+                    tracking=KeyedBy(keyed_by="call_id"),
                 ),
             ),
             tools=tuple(
