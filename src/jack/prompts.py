@@ -4,7 +4,17 @@ rig's rule (design doc §9.1): prompts, tool descriptions, notices, and
 model choice are the most-tuned parts of a harness, so none of them may
 be a literal inside a reducer, handler, or the CLI. Change wording here;
 nothing else moves.
+
+``JackParams`` at the bottom is the typed form of this surface — the
+declared candidate an optimizer or eval suite tunes (rig's eval
+design). Its defaults are the constants in this file; the notices,
+acks, and parameter schemas are not on the surface yet and stay plain
+constants.
 """
+
+from pydantic import Field
+
+from rig.core import Params
 
 DEFAULT_MODEL = "claude-opus-5"
 SMOKE_MODEL = "claude-haiku-4-5"
@@ -182,3 +192,52 @@ TOOL_ACKS = {
     "record_contact": "Contact recorded.",
     "complete_intake": "Intake closed.",
 }
+
+
+class JackParams(Params):
+    """Jack's tunable surface (rig eval design §2): the instructions
+    template and the five intake tool descriptions. Applying a
+    candidate is ``JackParams(**candidate)``; the defaults are this
+    file's constants. ``{price}`` in ``instructions`` is replaced with
+    the formatted tow price when the harness wires a session — the
+    tunable text is the template, the price is data."""
+
+    instructions: str = Field(
+        default=_INSTRUCTIONS_TEMPLATE,
+        description=(
+            "System instructions template for the intake agent; '{price}' "
+            "is replaced with the formatted tow price at session start."
+        ),
+    )
+    record_issue_tool: str = Field(
+        default=TOOL_DESCRIPTIONS["record_issue"],
+        description="Tool description for record_issue.",
+    )
+    judge_tow_tool: str = Field(
+        default=TOOL_DESCRIPTIONS["judge_tow"],
+        description="Tool description for judge_tow.",
+    )
+    record_locations_tool: str = Field(
+        default=TOOL_DESCRIPTIONS["record_locations"],
+        description="Tool description for record_locations.",
+    )
+    record_contact_tool: str = Field(
+        default=TOOL_DESCRIPTIONS["record_contact"],
+        description="Tool description for record_contact.",
+    )
+    complete_intake_tool: str = Field(
+        default=TOOL_DESCRIPTIONS["complete_intake"],
+        description="Tool description for complete_intake.",
+    )
+
+    def tool_descriptions(self) -> dict[str, str]:
+        """The five descriptions keyed by bare tool name — the shape
+        ``IntakeToolsHandler`` consumes. Tool names are identity, never
+        surface (rig MVP §9.1); only the description text is tunable."""
+        return {
+            "record_issue": self.record_issue_tool,
+            "judge_tow": self.judge_tow_tool,
+            "record_locations": self.record_locations_tool,
+            "record_contact": self.record_contact_tool,
+            "complete_intake": self.complete_intake_tool,
+        }
