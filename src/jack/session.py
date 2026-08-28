@@ -70,13 +70,4 @@ async def build_session(
         model=lambda: model_handler,
         payments=lambda: service,
     )
-    wiring = harness.wire(params or JackParams())
-    return await Session.open(
-        reducers=wiring.reducers,
-        handlers=wiring.handlers,
-        connections=wiring.connections,
-        log=log,
-        init=wiring.init,
-        error_result=wiring.error_result,
-        on_drop=wiring.on_drop,
-    )
+    return await Session.open(harness.wire(params or JackParams()), log=log)

@@ -101,8 +101,6 @@ class PayingCustomer:
         self, state: SessionState, events: Sequence[Any]
     ) -> Any | None:
         types = [getattr(e, "type", None) for e in events]
-        if "pricing_configured" not in types:
-            return PricingConfigured(amount_cents=PRICE_CENTS)
         if "user_message" not in types:
             return "My car died on 5th and Main. It's a 2015 Civic."
         if state.slices["completion"] is not None:
@@ -120,13 +118,9 @@ class PayingCustomer:
 async def test_no_tow_call_scores_full_marks(tmp_path: Path) -> None:
     scenario = Scenario(
         name="lockout-no-tow",
-        counterparty=lambda: Scripted(
-            [
-                PricingConfigured(amount_cents=PRICE_CENTS),
-                "I locked my keys in my 2015 Civic.",
-            ]
-        ),
+        counterparty=lambda: Scripted(["I locked my keys in my 2015 Civic."]),
         evaluator=score_no_tow,
+        boot=[PricingConfigured(amount_cents=PRICE_CENTS)],
     )
     result = await run_scenario(
         harness_for(tmp_path, NO_TOW_SCRIPT),
@@ -144,6 +138,7 @@ async def test_paid_tow_call_scores_full_marks(tmp_path: Path) -> None:
         name="tow-to-paid",
         counterparty=lambda: PayingCustomer(tmp_path / "pay.json"),
         evaluator=score_paid_tow,
+        boot=[PricingConfigured(amount_cents=PRICE_CENTS)],
     )
     result = await run_scenario(
         harness_for(tmp_path, TOW_SCRIPT),
