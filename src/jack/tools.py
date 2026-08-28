@@ -10,6 +10,7 @@ Tool descriptions, parameter schemas, and acknowledgement texts are all
 model visible, so they live in ``jack.prompts``, never here.
 """
 
+from collections.abc import Mapping
 from typing import Any
 
 from pydantic import ValidationError
@@ -37,7 +38,17 @@ _EVENT_BUILDERS: dict[str, type] = {
 class IntakeToolsHandler:
     """Claims execute_tool/tool_result keyed by call_id and declares the
     five intake tools. At-least-once safe: recording the same fact twice
-    folds to the same state (latest fact wins)."""
+    folds to the same state (latest fact wins).
+
+    ``descriptions`` injects the tool description texts (a candidate's,
+    via ``JackParams.tool_descriptions()``); the default is the baseline
+    in ``jack.prompts``. Names and parameter schemas are identity, not
+    surface, and are never injectable."""
+
+    def __init__(self, descriptions: Mapping[str, str] | None = None) -> None:
+        self._descriptions = (
+            descriptions if descriptions is not None else prompts.TOOL_DESCRIPTIONS
+        )
 
     def describe(self) -> HandlerDescription:
         return HandlerDescription(
@@ -51,7 +62,7 @@ class IntakeToolsHandler:
             tools=tuple(
                 ToolSchema(
                     name=name,
-                    description=prompts.TOOL_DESCRIPTIONS[name],
+                    description=self._descriptions[name],
                     parameters=prompts.TOOL_PARAMETERS[name],
                 )
                 for name in _EVENT_BUILDERS

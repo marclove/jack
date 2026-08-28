@@ -1,54 +1,32 @@
-"""Session assembly: reducers, handlers, connections, and the log.
+"""Session assembly: the harness plus the log.
 
-Fresh log: full wiring plus ``SessionInit`` carrying the instructions.
-Existing log: the log is the only truth — no connections, no init; the
-handler registry alone must satisfy every logged ``handler_id``
-(``model``, ``intake``, ``payment_link``, ``payment_check``,
-``payment_policy``). Renaming a registry key is therefore a breaking
-change for existing call logs.
+Fresh log: ``JackHarness.wire`` produces the full wiring and the
+``SessionInit`` carrying the formatted instructions. Existing log: the
+log is the only truth — no connections, no init; the handler registry
+alone must satisfy every logged ``handler_id`` (``model``, ``intake``,
+``payment_link``, ``payment_check``, ``payment_policy``). Renaming a
+registry key is therefore a breaking change for existing call logs.
 """
 
 from pathlib import Path
 from typing import Any
 
 from rig.adapters.jsonl import JsonlEventLog
-from rig.core import GuardBinding, SessionInit, agent_reducers
-from rig.runtime import Connection, Session
+from rig.runtime import Session
 
-from jack import prompts
 from jack.guards import PaymentPolicyGuard
+from jack.harness import JackHarness, jack_reducers
 from jack.payments import (
     CheckPaymentHandler,
     SendPaymentLinkHandler,
     jack_error_result,
 )
-from jack.reducers import (
-    CompletionReducer,
-    ContactReducer,
-    IssueReducer,
-    PaymentReducer,
-    PricingReducer,
-    TowReducer,
-    TripReducer,
-)
+from jack.prompts import JackParams
 from jack.services import FakePaymentService
 from jack.tools import IntakeToolsHandler
 from jack.vocabulary import JACK_VOCABULARY
 
-
-def jack_reducers() -> list[Any]:
-    """Fresh instances of every reducer a jack session folds with —
-    the same list replay and resume must use, in the same order."""
-    return [
-        *agent_reducers(),
-        PricingReducer(),
-        IssueReducer(),
-        TowReducer(),
-        TripReducer(),
-        ContactReducer(),
-        PaymentReducer(),
-        CompletionReducer(),
-    ]
+__all__ = ["build_session", "jack_reducers"]
 
 
 async def build_session(
@@ -60,19 +38,23 @@ async def build_session(
     amount_cents: int | None = None,
     currency: str = "USD",
     payment_service: Any = None,
-    instructions_text: str | None = None,
+    params: JackParams | None = None,
 ) -> Session:
+    """Open a jack session over its JSONL log. A fresh log wires
+    through ``JackHarness`` with ``params`` (default: the baseline
+    ``JackParams()``); an existing log reopens with handlers only —
+    candidates never apply retroactively to a recorded call."""
     service = payment_service or FakePaymentService(payments_path)
     resuming = log_path.exists() and log_path.stat().st_size > 0
     log = JsonlEventLog(log_path, vocabulary=JACK_VOCABULARY)
-    handlers = {
-        "model": model_handler,
-        "intake": IntakeToolsHandler(),
-        "payment_link": SendPaymentLinkHandler(service, call_id),
-        "payment_check": CheckPaymentHandler(service),
-        "payment_policy": PaymentPolicyGuard(),
-    }
     if resuming:
+        handlers = {
+            "model": model_handler,
+            "intake": IntakeToolsHandler(),
+            "payment_link": SendPaymentLinkHandler(service, call_id),
+            "payment_check": CheckPaymentHandler(service),
+            "payment_policy": PaymentPolicyGuard(),
+        }
         return await Session.open(
             reducers=jack_reducers(),
             handlers=handlers,
@@ -81,31 +63,20 @@ async def build_session(
         )
     if amount_cents is None:
         raise ValueError("amount_cents is required for a fresh call")
-    connections = [
-        Connection(id="model", handler="model"),
-        Connection(id="intake", handler="intake"),
-        Connection(
-            id="payment",
-            handler="payment_link",
-            guards=(
-                GuardBinding(connection_id="payment-policy", direction="outbound"),
-            ),
-        ),
-        Connection(id="payment-check", handler="payment_check"),
-        Connection(
-            id="payment-policy",
-            handler="payment_policy",
-            config={"amount_cents": amount_cents},
-        ),
-    ]
-    init = SessionInit(
-        instructions=instructions_text or prompts.instructions(amount_cents, currency)
+    harness = JackHarness(
+        call_id=call_id,
+        amount_cents=amount_cents,
+        currency=currency,
+        model=lambda: model_handler,
+        payments=lambda: service,
     )
+    wiring = harness.wire(params or JackParams())
     return await Session.open(
-        reducers=jack_reducers(),
-        handlers=handlers,
-        connections=connections,
+        reducers=wiring.reducers,
+        handlers=wiring.handlers,
+        connections=wiring.connections,
         log=log,
-        init=init,
-        error_result=jack_error_result,
+        init=wiring.init,
+        error_result=wiring.error_result,
+        on_drop=wiring.on_drop,
     )
