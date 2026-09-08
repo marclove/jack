@@ -1,14 +1,16 @@
 from pathlib import Path
 
+from rig.core import HarnessError
 from rig.runtime import DispatchContext
 
-from jack.payments import (
-    CheckPaymentHandler,
-    SendPaymentLinkHandler,
-    jack_error_result,
+from jack.payments import CheckPaymentHandler, SendPaymentLinkHandler
+from jack.services import FakePaymentService
+from jack.vocabulary import (
+    CheckPayment,
+    PaymentLinkSent,
+    PaymentStatusChecked,
+    SendPaymentLink,
 )
-from jack.services import FakePaymentFailure, FakePaymentService
-from jack.vocabulary import CheckPayment, SendPaymentLink
 
 CTX = DispatchContext()
 
@@ -49,24 +51,23 @@ async def test_check_mirrors_the_link_id(tmp_path: Path) -> None:
     assert result.status == "pending"
 
 
-def test_error_mapper_covers_jack_commands() -> None:
-    boom = FakePaymentFailure("boom")
-    send_error = jack_error_result(
+def test_failure_factories_cover_jack_pairs() -> None:
+    boom = HarnessError(code="internal", message="FakePaymentFailure: boom")
+    send_error = PaymentLinkSent.from_error(
         SendPaymentLink(phone="555-1", amount_cents=15000, attempt=1), boom
     )
     assert send_error.type == "payment_link_sent"
     assert send_error.status == "error"
-    assert "boom" in send_error.error
+    assert send_error.error is not None and "boom" in send_error.error
 
-    check_error = jack_error_result(CheckPayment(link_id="link-9"), boom)
+    check_error = PaymentStatusChecked.from_error(CheckPayment(link_id="link-9"), boom)
     assert check_error.type == "payment_status_checked"
     assert check_error.status == "error"
     assert check_error.link_id == "link-9"  # mirror survives failure
 
 
-def test_error_mapper_delegates_standard_commands() -> None:
-    from rig.core import CallModel
-
-    result = jack_error_result(CallModel(messages=[]), RuntimeError("x"))
-    assert result.type == "model_response"
-    assert result.status == "error"
+def test_handlers_declare_their_failure_factories() -> None:
+    # Bound classmethods compare equal across accesses; identity does not
+    # hold, and rig's binding agreement check uses equality too.
+    assert SendPaymentLinkHandler.failure == PaymentLinkSent.from_error
+    assert CheckPaymentHandler.failure == PaymentStatusChecked.from_error

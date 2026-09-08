@@ -56,6 +56,7 @@ class IntakeToolsHandler:
                 HandlerPair(
                     command="execute_tool",
                     result="tool_result",
+                    failure=ToolResult.from_error,
                     tracking=KeyedBy(keyed_by="call_id"),
                 ),
             ),

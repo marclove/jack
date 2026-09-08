@@ -119,7 +119,7 @@ async def test_no_tow_call_scores_full_marks(tmp_path: Path) -> None:
     scenario = Scenario(
         name="lockout-no-tow",
         counterparty=lambda: Scripted(["I locked my keys in my 2015 Civic."]),
-        evaluator=score_no_tow,
+        evaluators={"resolution": score_no_tow},
         boot=[PricingConfigured(amount_cents=PRICE_CENTS)],
     )
     result = await run_scenario(
@@ -130,14 +130,15 @@ async def test_no_tow_call_scores_full_marks(tmp_path: Path) -> None:
         experiment="jack-evals",
     )
     assert result.error is None
-    assert result.score.value >= 1.0, result.score.feedback
+    score = result.scores["resolution"]
+    assert score.value >= 1.0, score.feedback
 
 
 async def test_paid_tow_call_scores_full_marks(tmp_path: Path) -> None:
     scenario = Scenario(
         name="tow-to-paid",
         counterparty=lambda: PayingCustomer(tmp_path / "pay.json"),
-        evaluator=score_paid_tow,
+        evaluators={"resolution": score_paid_tow},
         boot=[PricingConfigured(amount_cents=PRICE_CENTS)],
     )
     result = await run_scenario(
@@ -148,7 +149,8 @@ async def test_paid_tow_call_scores_full_marks(tmp_path: Path) -> None:
         experiment="jack-evals",
     )
     assert result.error is None
-    assert result.score.value >= 1.0, result.score.feedback
+    score = result.scores["resolution"]
+    assert score.value >= 1.0, score.feedback
 
 
 async def test_candidate_tool_descriptions_reach_the_schemas(tmp_path: Path) -> None:

@@ -7,9 +7,9 @@ the JSONL log can write and read jack's types — a log built with rig's
 defaults cannot reopen a jack call (spec §4).
 """
 
-from typing import Literal
+from typing import Any, Literal
 
-from rig.core import FrozenModel, vocabulary
+from rig.core import FrozenModel, HarnessError, vocabulary
 
 
 class PricingConfigured(FrozenModel):
@@ -61,6 +61,13 @@ class PaymentLinkSent(FrozenModel):
     amount_cents: int | None = None
     error: str | None = None
 
+    @classmethod
+    def from_error(cls, command: Any, error: HarnessError) -> "PaymentLinkSent":
+        """Failure factory for the ``send_payment_link`` pair: a handler
+        crash becomes this error result, so the pending mark always
+        clears."""
+        return cls(status="error", error=error.message)
+
 
 class PaymentStatusChecked(FrozenModel):
     """Result of ``check_payment``. ``link_id`` mirrors the command's key
@@ -71,6 +78,13 @@ class PaymentStatusChecked(FrozenModel):
     link_id: str
     status: Literal["pending", "paid", "expired", "error"]
     error: str | None = None
+
+    @classmethod
+    def from_error(cls, command: Any, error: HarnessError) -> "PaymentStatusChecked":
+        """Failure factory for the ``check_payment`` pair. ``link_id``
+        mirrors the command's key even on failure, so the error result
+        still settles the command it answers."""
+        return cls(link_id=command.link_id, status="error", error=error.message)
 
 
 class PollTick(FrozenModel):

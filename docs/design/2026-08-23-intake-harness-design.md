@@ -66,7 +66,7 @@ src/jack/
   tools.py            # the intake tool handler the model calls
   payments.py         # SendPaymentLink / CheckPayment handlers
   services.py         # service protocols + fakes
-  guards.py           # PaymentPolicyGuard
+  guards.py           # the payment_policy guard function
   prompts.py          # every string the model can see, as named parameters
   session.py          # build_session() wiring
   cli.py              # jack new / jack resume terminal loop
@@ -143,10 +143,11 @@ emittable until the facts exist.
 
 ### The guard
 
-`PaymentPolicyGuard` is an ordinary handler behind its own connection,
-bound outbound on the payment connection via `GuardBinding`. It checks
-the command against its **own** connection config (config rides
-`DispatchContext`): the amount must equal the configured price — two
+`payment_policy` is a plain async function wrapped with rig's
+`guard()`, giving an ordinary handler behind its own connection, bound
+outbound on the payment connection via `GuardBinding`. It checks
+the command against its **own** connection config (the `config`
+argument): the amount must equal the configured price — two
 independent sources must agree, reducer state and guard config — and
 the phone must plausibly be a mobile number. Any failure rejects with a
 reason.
