@@ -12,15 +12,11 @@ from pathlib import Path
 from typing import Any
 
 from rig.adapters.jsonl import JsonlEventLog
-from rig.runtime import Session
+from rig.runtime import Session, guard
 
-from jack.guards import PaymentPolicyGuard
+from jack.guards import payment_policy
 from jack.harness import JackHarness, jack_reducers
-from jack.payments import (
-    CheckPaymentHandler,
-    SendPaymentLinkHandler,
-    jack_error_result,
-)
+from jack.payments import CheckPaymentHandler, SendPaymentLinkHandler
 from jack.prompts import JackParams
 from jack.services import FakePaymentService
 from jack.tools import IntakeToolsHandler
@@ -53,13 +49,12 @@ async def build_session(
             "intake": IntakeToolsHandler(),
             "payment_link": SendPaymentLinkHandler(service, call_id),
             "payment_check": CheckPaymentHandler(service),
-            "payment_policy": PaymentPolicyGuard(),
+            "payment_policy": guard(payment_policy),
         }
         return await Session.open(
             reducers=jack_reducers(),
             handlers=handlers,
             log=log,
-            error_result=jack_error_result,
         )
     if amount_cents is None:
         raise ValueError("amount_cents is required for a fresh call")

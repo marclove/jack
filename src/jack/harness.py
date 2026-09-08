@@ -18,14 +18,10 @@ from collections.abc import Callable
 from typing import Any
 
 from rig.core import GuardBinding, SessionInit, agent_reducers
-from rig.runtime import Connection, Wiring
+from rig.runtime import Connection, Wiring, guard
 
-from jack.guards import PaymentPolicyGuard
-from jack.payments import (
-    CheckPaymentHandler,
-    SendPaymentLinkHandler,
-    jack_error_result,
-)
+from jack.guards import payment_policy
+from jack.payments import CheckPaymentHandler, SendPaymentLinkHandler
 from jack.prompts import JackParams, format_price
 from jack.reducers import (
     CompletionReducer,
@@ -86,7 +82,7 @@ class JackHarness:
             "intake": IntakeToolsHandler(descriptions=params.tool_descriptions()),
             "payment_link": SendPaymentLinkHandler(service, self.call_id),
             "payment_check": CheckPaymentHandler(service),
-            "payment_policy": PaymentPolicyGuard(),
+            "payment_policy": guard(payment_policy),
         }
         connections = [
             Connection(id="model", handler="model"),
@@ -115,5 +111,4 @@ class JackHarness:
             handlers=handlers,
             connections=connections,
             init=init,
-            error_result=jack_error_result,
         )

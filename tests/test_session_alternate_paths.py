@@ -72,7 +72,8 @@ async def test_no_tow_needed_completes_without_payment(tmp_path: Path) -> None:
 
 async def test_injected_send_failure_maps_to_send_failed_halt(tmp_path: Path) -> None:
     """Fault injection through the whole stack (spec §10): the fake raises
-    on create_link, the session routes the raise through jack_error_result,
+    on create_link, the session routes the raise through the pair's
+    failure factory (``PaymentLinkSent.from_error``),
     the reducer folds the error result and halts the standing request."""
     script = [
         reply(tool_call("intake__record_issue", summary="dead", vehicle="Civic")),
